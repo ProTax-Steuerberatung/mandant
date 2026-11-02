@@ -90,6 +90,7 @@ main{padding:24px max(24px,env(safe-area-inset-right,0px)) 60px 24px;display:fle
 .banner{border-radius:var(--r);padding:12px 16px;font-size:14px;border:1px solid;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .banner.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
 .banner.err{background:var(--err-bg);color:var(--err);border-color:var(--err)}
+.banner.info{background:var(--info-bg);color:var(--info);border-color:var(--info)}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:500;white-space:nowrap}
 .b-warn{background:var(--warn-bg);color:var(--warn)}
 .st-entwurf{background:var(--bg2);color:var(--text2)}
@@ -176,7 +177,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .multi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;border:1px solid var(--field);border-radius:6px;padding:18px 14px 12px}
 .group{grid-column:1/-1;border:1px solid var(--border);border-radius:12px;background:var(--bg2);padding:16px 18px;display:flex;flex-direction:column;gap:14px}
 .group-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.group-h .t{font-size:16px;font-weight:500}
+.group-h .gt{font-size:16px;font-weight:500}
 .grow{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px 18px;display:flex;flex-direction:column;gap:10px}
 .grow-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
 .secfoot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:18px}

@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.2';
+const VERSION = 'ProTax Mandant v.1.2.1';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -465,9 +465,9 @@ function groupHtml(rec, g) {
   const rows = Array.isArray(rec.data[g.k]) ? rec.data[g.k] : [];
   const req = LG.isReq(g, rec.typ);
   return `<div class="group full" style="grid-column:1/-1">
-    <div class="group-h"><span class="t">${esc(g.l)}${req ? '<span class="req">*</span>' : ''} <span class="sm muted">(${rows.length})</span></span>
+    <div class="group-h"><span class="gt">${esc(g.l)}${req ? '<span class="req">*</span>' : ''} <span class="sm muted">(${rows.length})</span></span>
       <button type="button" tabindex="-1" class="mtog" data-mopen="${g.k}" aria-pressed="${rec.open[g.k] ? 'true' : 'false'}">→ Mandant</button></div>
-    ${rows.map((row, i) => `<div class="grow"><div class="grow-h"><span>${esc(g.l.split(' / ')[0])} ${i + 1}</span><button type="button" class="btn sm danger" data-gdel="${g.k}.${i}">Entfernen</button></div>
+    ${rows.map((row, i) => `<div class="grow"><div class="grow-h"><span>${esc(({ kinder: 'Kind', gf: 'Geschäftsführer', gs: 'Gesellschafter', beteiligungen: 'Beteiligung' })[g.k] || g.l)} ${i + 1}</span><button type="button" class="btn sm danger" data-gdel="${g.k}.${i}">Entfernen</button></div>
       <div class="grid">${LG.rowFields(g, row, rec.data).map(f => fieldHtml(rec, f, `${g.k}.${i}.${f.k}`, { inGroup: true })).join('')}</div></div>`).join('')}
     <div><button type="button" class="btn sm" data-gadd="${g.k}">${I.plus}${esc(g.add || 'Hinzufügen')}</button></div></div>`;
 }
@@ -498,8 +498,12 @@ function renderSection() {
     body = `<div class="grid">${fs.map(f => f.t === 'group' ? groupHtml(rec, f) : fieldHtml(rec, f, f.k)).join('')}</div>`;
   }
   const prev = secs[i - 1], next = secs[i + 1];
+  const partnerHint = sec.k === 'familie' && !SC.VERH.includes(rec.data.familienstand)
+    ? `<div class="banner info">${rec.data.familienstand ? `Familienstand ist „${esc(rec.data.familienstand)}“ – Partnerangaben entfallen.` : 'Die Felder für Ehe- bzw. Lebenspartner erscheinen, sobald unter „Person“ der Familienstand „verheiratet“ oder „eingetragene Lebenspartnerschaft“ gewählt ist.'}
+       <button type="button" class="btn sm" data-goto="person|familienstand" style="margin-left:auto">Familienstand ${rec.data.familienstand ? 'ändern' : 'wählen'}</button></div>` : '';
   el.innerHTML = `<div><h2>${esc(sec.l)}</h2>${sec.hint ? `<div class="hint">${esc(sec.hint)}</div>` : ''}
     ${rec.typ === 'gmbh' && sec.k === 'gwg' ? '<div class="hint">Identifiziert wird die für die Gesellschaft auftretende Person (in der Regel der Geschäftsführer).</div>' : ''}</div>
+    ${partnerHint}
     ${body}
     <div class="secfoot"><span>${prev ? `<button class="btn" data-sec="${prev.k}">${I.back}${esc(prev.l)}</button>` : ''}</span>
       <span>${next ? `<button class="btn soft" data-sec="${next.k}">Weiter: ${esc(next.l)}</button>` : `<button class="btn soft" data-act="print">${I.print}Stammblatt drucken</button>`}</span></div>`;
