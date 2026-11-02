@@ -91,9 +91,9 @@
   function evaluate(rec) {
     const d = rec.data || {}, open = rec.open || {};
     const out = { sections: {}, total: 0, done: 0, errors: [], warns: [], oks: [], missing: [], openList: [] };
-    const addMissing = (sec, key, label, s) => {
+    const addMissing = (sec, key, label, s, kanzlei) => {
       s.missing.push(label);
-      out.missing.push({ sec: sec.k, key, label, section: sec.l, mandant: !!open[key] });
+      out.missing.push({ sec: sec.k, key, label, section: sec.l, mandant: !kanzlei && !!open[key], kanzlei: !!kanzlei });
     };
     for (const sec of sectionsFor(rec.typ)) {
       const s = { total: 0, done: 0, missing: [], errors: [] };
@@ -119,10 +119,10 @@
             if (open[f.k] && !rows.length) out.openList.push({ key: f.k, label: f.l, kind: 'field' });
           } else {
             const v = d[f.k];
-            if (isReq(f, rec.typ)) { s.total++; if (!isEmpty(v)) s.done++; else addMissing(sec, f.k, f.l, s); }
+            if (isReq(f, rec.typ)) { s.total++; if (!isEmpty(v)) s.done++; else addMissing(sec, f.k, f.l, s, f.kanzlei); }
             const e = checkValue(f, v, d);
             if (e) s.errors.push(`${f.l}: ${e}`);
-            if (open[f.k] && isEmpty(v)) out.openList.push({ key: f.k, label: f.l, kind: 'field' });
+            if (open[f.k] && isEmpty(v) && !f.kanzlei) out.openList.push({ key: f.k, label: f.l, kind: 'field' });
           }
         }
       }
@@ -198,7 +198,39 @@
     return { to: c.email, subject: `Ihre Mandatsaufnahme bei ${kanzlei.kurz || kanzlei.name || 'uns'} – noch benötigte Angaben`, body: parts.join('\n') };
   }
 
-  const L = { validSteuerId, validIban, normIban, fmtIban, normUst, validEmail, num, deDate, todayIso, checkValue, isEmpty, appliesTo, isReq, sectionsFor, fieldsFor, rowFields, docsFor, docState, evaluate, computeTitle, contact, mailText };
+  /** Offene Punkte für die Mandanten-Checkliste, nach Abschnitten gegliedert */
+  function checklist(rec) {
+    const d = rec.data || {}, open = rec.open || {}, out = [];
+    for (const sec of sectionsFor(rec.typ)) {
+      const items = [];
+      if (sec.docs) {
+        for (const doc of docsFor(rec.typ)) if (open['doc:' + doc.k] && docState(rec, doc.k) === 'offen') items.push({ kind: 'doc', doc });
+      } else {
+        for (const f of fieldsFor(sec, rec)) {
+          if (f.kanzlei || f.internal || !open[f.k]) continue;
+          if (f.t === 'group') { if (!(Array.isArray(d[f.k]) && d[f.k].length)) items.push({ kind: 'group', f }); }
+          else if (isEmpty(d[f.k])) items.push({ kind: 'field', f });
+        }
+      }
+      if (items.length) out.push({ k: sec.k, title: sec.docs ? 'Unterlagen' : sec.l, items });
+    }
+    return out;
+  }
+  function mailShort(rec, user, kanzlei, hinweis) {
+    const c = contact(rec);
+    const html = s => String(s ?? '').replace(/[&<>"]/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[x]));
+    const text = [c.gruss, '',
+      'vielen Dank für das angenehme Gespräch und Ihr Vertrauen in unsere Kanzlei.', '',
+      'Damit wir Ihr Mandat vollständig anlegen können, benötigen wir noch einige Angaben und Unterlagen von Ihnen. Eine Übersicht finden Sie in der beigefügten Checkliste.', '',
+      hinweis || '', '',
+      'Bei Fragen bin ich gerne für Sie da.', '',
+      'Mit freundlichen Grüßen', '', user || '', kanzlei.name || '',
+      [kanzlei.adresse, kanzlei.telefon, kanzlei.email].filter(Boolean).join(' · ')].join('\n');
+    return { to: c.email, subject: `Ihre Mandatsaufnahme bei ${kanzlei.kurz || kanzlei.name || 'uns'} – Checkliste`, text,
+      toHtml: t => '<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">' + t.split('\n').map(l => l ? html(l) : '').join('<br>') + '</div>' };
+  }
+
+  const L = { checklist, mailShort, validSteuerId, validIban, normIban, fmtIban, normUst, validEmail, num, deDate, todayIso, checkValue, isEmpty, appliesTo, isReq, sectionsFor, fieldsFor, rowFields, docsFor, docState, evaluate, computeTitle, contact, mailText };
   if (typeof module !== 'undefined' && module.exports) module.exports = L;
   else root.LOGIC = L;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.1.1';
+const VERSION = 'ProTax Mandant v.1.2';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -46,6 +46,8 @@ const Demo = {
   async reload(rec) { return structuredClone((this.read() || []).find(r => r.id === rec.id)); },
   async upload(rec, docKey, file) { const id = uid(); this.blobs[id] = URL.createObjectURL(file); return { id, name: file.name, size: file.size, url: '' }; },
   href(f) { return this.blobs[f.id] || f.url || ''; },
+  async mailToken() { return 'demo'; },
+  async createDraft() { return null; },
   reset() { try { localStorage.removeItem(this.key); } catch (e) { } this.mem = null; }
 };
 
@@ -68,10 +70,14 @@ const Auth = {
   },
   login() { return this.pca.loginRedirect({ scopes: this.scopes, prompt: 'select_account' }); },
   logout() { return this.pca.logoutRedirect({ account: this.account }); },
-  async token() {
-    try { return (await this.pca.acquireTokenSilent({ scopes: this.scopes, account: this.account })).accessToken; }
+  async token(scopes) {
+    const sc = scopes || this.scopes;
+    try { return (await this.pca.acquireTokenSilent({ scopes: sc, account: this.account })).accessToken; }
     catch (e) {
-      if (e instanceof msal.InteractionRequiredAuthError) { await this.pca.acquireTokenRedirect({ scopes: this.scopes }); }
+      if (e instanceof msal.InteractionRequiredAuthError) {
+        if (scopes) return (await this.pca.acquireTokenPopup({ scopes: sc, account: this.account })).accessToken;
+        await this.pca.acquireTokenRedirect({ scopes: sc });
+      }
       throw e;
     }
   }
@@ -82,7 +88,7 @@ const SP = {
   siteId: null, listId: null, libId: null, driveId: null, webUrl: '',
   async g(path, opt = {}) {
     const url = path.startsWith('http') ? path : 'https://graph.microsoft.com/v1.0' + path;
-    const headers = { Authorization: 'Bearer ' + await Auth.token(), ...(opt.headers || {}) };
+    const headers = { Authorization: 'Bearer ' + (opt.token || await Auth.token()), ...(opt.headers || {}) };
     let body = opt.body;
     if (opt.json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(opt.json); }
     const r = await fetch(url, { method: opt.method || 'GET', headers, body });
@@ -154,7 +160,20 @@ const SP = {
     const it = await this.g(`/drives/${this.driveId}/root:/${path}:/content?@microsoft.graph.conflictBehavior=rename`, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
     return { id: it.id, name: it.name, size: it.size, url: it.webUrl };
   },
-  href(f) { return f.url || ''; }
+  href(f) { return f.url || ''; },
+  MAIL: ['Mail.ReadWrite'],
+  async mailToken() {
+    try { return await Auth.token(this.MAIL); }
+    catch (e) { const err = new Error('Keine Berechtigung für Outlook-Entwürfe. In Entra bei der App „Mandant ProTax“ die Berechtigung Mail.ReadWrite hinzufügen und die Administratorzustimmung erteilen.'); err.cause = e; throw err; }
+  },
+  async createDraft(token, m) {
+    const msg = await this.g('/me/messages', { method: 'POST', token, json: {
+      subject: m.subject, body: { contentType: 'HTML', content: m.html },
+      toRecipients: m.to ? [{ emailAddress: { address: m.to } }] : [],
+      attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: m.fileName, contentType: 'application/pdf', contentBytes: m.pdfB64 }]
+    } });
+    return msg.webLink;
+  }
 };
 
 /* ================= Zustand ================= */
@@ -428,7 +447,7 @@ function fieldHtml(rec, f, path, opts = {}) {
   const val = getVal(rec, path), isOpen = !opts.inGroup && rec.open[path] && LG.isEmpty(val);
   const err = LG.checkValue(f, val, rec.data);
   const req = opts.inGroup ? f.req : LG.isReq(f, rec.typ);
-  const tog = (!opts.inGroup && !f.internal) ? `<button type="button" tabindex="-1" class="mtog" data-mopen="${path}" aria-pressed="${rec.open[path] ? 'true' : 'false'}" title="Beim Mandanten anfragen">→ Mandant</button>` : '';
+  const tog = (!opts.inGroup && !f.internal && !f.kanzlei) ? `<button type="button" tabindex="-1" class="mtog" data-mopen="${path}" aria-pressed="${rec.open[path] ? 'true' : 'false'}" title="Beim Mandanten anfragen">→ Mandant</button>` : '';
   if (f.t === 'check') {
     return `<div class="f fcheck ${f.w === 'full' ? 'full' : ''}"><div class="lab"><label class="chk"><input type="checkbox" id="${fid(path)}" data-p="${path}" ${val ? 'checked' : ''}>${esc(f.l)}${req ? '<span class="req">*</span>' : ''}</label>${tog}</div></div>`;
   }
@@ -490,7 +509,7 @@ function renderSide() {
   const ev = LG.evaluate(rec);
   const ck = (l, t) => `<div class="ck ${l}"><b aria-hidden="true">${{ err: '✕', warn: '!', ok: '✓' }[l]}</b><span>${esc(t)}</span></div>`;
   const miss = ev.missing;
-  const canFlag = miss.filter(m => !m.mandant && !m.key.includes('.')).length;
+  const canFlag = miss.filter(m => !m.mandant && !m.kanzlei && !m.key.includes('.')).length;
   el.innerHTML = `<section class="card card-b" aria-label="Vollständigkeit">
       <div class="pct"><span class="card-t">Vollständigkeit</span><b>${ev.pct} %</b></div>
       <div class="pbar"><span style="width:${ev.pct}%"></span></div>
@@ -585,35 +604,53 @@ async function setStatus(k) {
 
 /* ================= E-Mail an Mandanten ================= */
 function dlgMail() {
-  const rec = cur(), ev = LG.evaluate(rec);
-  const m = LG.mailText(rec, ev, S.user.name, C.kanzlei || {}, C.mailHinweis);
+  const rec = cur(), ev = LG.evaluate(rec), K = C.kanzlei || {};
+  const sections = LG.checklist(rec), count = sections.reduce((n, x) => n + x.items.length, 0);
+  const m = LG.mailShort(rec, S.user.name, K, C.mailHinweis);
+  const pdfOpts = () => ({ rec, sections, kanzlei: K, logo: C.logoDunkel || 'icons/logo-dunkel.png', user: S.user.name });
   openDlg(`<form method="dialog"><div class="dlg-h">E-Mail an den Mandanten</div>
     <div class="dlg-b">
-      ${ev.openList.length ? '' : '<div class="banner warn">Es ist noch nichts für den Mandanten markiert („→ Mandant“).</div>'}
+      ${count ? `<div class="banner ok" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok)">Checkliste mit ${count} Punkt(en) wird als PDF angehängt.
+        <button type="button" class="btn sm" id="m-pdf" style="margin-left:auto">Checkliste ansehen</button></div>`
+      : '<div class="banner warn">Es ist noch nichts für den Mandanten markiert. Über „→ Mandant“ an Feldern und Unterlagen festlegen, was angefragt werden soll.</div>'}
       <div class="f"><label for="m-to">An</label><input id="m-to" type="email" value="${esc(m.to)}"></div>
       <div class="f"><label for="m-sub">Betreff</label><input id="m-sub" value="${esc(m.subject)}"></div>
-      <div class="f"><label for="m-body">Text</label><textarea id="m-body" class="mail">${esc(m.body)}</textarea></div>
+      <div class="f"><label for="m-body">Text</label><textarea id="m-body" class="mail" style="min-height:240px">${esc(m.text)}</textarea></div>
       ${rec.status === 'entwurf' ? '<label class="chk"><input type="checkbox" id="m-st" checked>Status auf „Beim Mandanten“ setzen</label>' : ''}
-      <div class="hint">„Im E-Mail-Programm öffnen“ übergibt den Text an Outlook. Bei sehr langen Texten lieber kopieren und einfügen.</div>
+      <div class="hint">Es wird nichts automatisch versendet: In Outlook entsteht ein Entwurf mit der Checkliste im Anhang, den Sie prüfen und selbst senden. Er liegt auch im Ordner „Entwürfe“ Ihres Postfachs.</div>
     </div>
-    <div class="dlg-f"><button type="button" class="btn" data-close>Schließen</button><button type="button" class="btn" id="m-copy">Text kopieren</button><button class="btn primary" id="m-open">${I.mail}Im E-Mail-Programm öffnen</button></div></form>`);
-  const done = (how) => {
-    const st = $('#m-st');
-    const hist = `E-Mail an Mandanten ${how} (${ev.openList.length} offene Punkte)`;
-    if (st && st.checked) { rec.status = 'mandant'; touch(rec, hist); render(); } else touch(rec, hist);
-  };
-  $('#m-copy').addEventListener('click', async e => {
-    e.preventDefault();
-    const txt = `${$('#m-sub').value}\n\n${$('#m-body').value}`;
-    try { await navigator.clipboard.writeText(txt); toast('Text kopiert', 'ok'); } catch (err) { $('#m-body').select(); document.execCommand('copy'); toast('Text kopiert', 'ok'); }
-    done('kopiert');
+    <div class="dlg-f"><button type="button" class="btn" data-close>Schließen</button>
+      <button type="button" class="btn primary" id="m-draft" ${count ? '' : 'disabled'}>${I.mail}Outlook-Entwurf erstellen</button></div></form>`);
+  const pdfBtn = $('#m-pdf');
+  if (pdfBtn) pdfBtn.addEventListener('click', async () => {
+    try { const blob = await CHECKLIST.blob(pdfOpts()); const u = URL.createObjectURL(blob); window.open(u, '_blank'); setTimeout(() => URL.revokeObjectURL(u), 60000); }
+    catch (e) { toast('Checkliste konnte nicht erstellt werden: ' + e.message, 'err'); }
   });
-  $('#m-open').addEventListener('click', e => {
-    e.preventDefault();
-    const href = `mailto:${encodeURIComponent($('#m-to').value.trim())}?subject=${encodeURIComponent($('#m-sub').value)}&body=${encodeURIComponent($('#m-body').value)}`;
-    if (href.length > 1900) toast('Text ist für die direkte Übergabe evtl. zu lang – falls er abgeschnitten wird, bitte „Text kopieren“ nutzen.');
-    location.href = href;
-    done('erstellt'); closeDlg();
+  $('#m-draft').addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Erstelle Entwurf …';
+    try {
+      const token = await S.store.mailToken();
+      const opts = pdfOpts(), name = CHECKLIST.fileName(rec);
+      const to = $('#m-to').value.trim(), subject = $('#m-sub').value, text = $('#m-body').value;
+      let link = null;
+      if (C.demo) {
+        const blob = await CHECKLIST.blob(opts); const u = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        toast('Demo: Checkliste heruntergeladen. In der echten App entsteht hier ein Outlook-Entwurf mit Anhang.');
+      } else {
+        const pdfB64 = await CHECKLIST.base64(opts);
+        link = await S.store.createDraft(token, { to, subject, html: m.toHtml(text), fileName: name, pdfB64 });
+      }
+      const st = $('#m-st');
+      const hist = `Outlook-Entwurf mit Checkliste erstellt (${count} Punkte)`;
+      if (st && st.checked) rec.status = 'mandant';
+      touch(rec, hist);
+      closeDlg(); render();
+      if (link) { window.open(link, '_blank', 'noopener'); toast('Entwurf in Outlook erstellt – bitte prüfen und senden', 'ok'); }
+    } catch (err) {
+      console.error(err); toast(err.message, 'err');
+      btn.disabled = false; btn.innerHTML = `${I.mail}Outlook-Entwurf erstellen`;
+    }
   });
 }
 
@@ -716,7 +753,7 @@ function bindEvents() {
         case 'new': return dlgNew();
         case 'mail': return dlgMail();
         case 'print': return printStammblatt();
-        case 'flag-all': { const ev = LG.evaluate(rec); ev.missing.filter(m => !m.key.includes('.')).forEach(m => { rec.open[m.key] = true; }); touch(rec); rerenderKeepFocus(); return; }
+        case 'flag-all': { const ev = LG.evaluate(rec); ev.missing.filter(m => !m.key.includes('.') && !m.kanzlei).forEach(m => { rec.open[m.key] = true; }); touch(rec); rerenderKeepFocus(); return; }
         case 'cancel': {
           const g = await ask('Aufnahme abbrechen', `<div class="f"><label for="c-g">Grund<span class="req">*</span></label><input id="c-g" placeholder="z. B. Mandant hat sich anders entschieden"></div><div class="hint">Die Aufnahme bleibt mit allen Unterlagen erhalten (Aufbewahrung nach GwG) und kann wieder aufgenommen werden.</div>`, 'Abbrechen bestätigen', () => $('#c-g').value.trim());
           if (!g) return; rec.status = 'abgebrochen'; rec.abbruchGrund = g; touch(rec, 'Abgebrochen: ' + g); return render();

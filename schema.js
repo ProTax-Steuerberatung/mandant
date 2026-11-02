@@ -4,6 +4,7 @@
  * req:    Pflichtfeld (true oder Liste von Mandantentypen)
  * when:   Funktion (daten) => sichtbar ja/nein; in Gruppen (zeile, daten)
  * w:      'full' = volle Breite
+ * kanzlei: nur von der Kanzlei auszufüllen – wird nie beim Mandanten angefragt
  */
 (function (root) {
   'use strict';
@@ -131,8 +132,8 @@
             { k: 'staatsang', l: 'Staatsangehörigkeit', t: 'text', req: true, when: r => r.wb === 'ja' }
           ]
         },
-        { k: 'transparenz', l: 'Transparenzregister eingesehen am', t: 'date', req: true, past: true },
-        { k: 'transparenzStimmig', l: 'Eintrag stimmt mit Angaben überein', t: 'select', o: ['ja', 'nein – Unstimmigkeit prüfen'], req: true }
+        { k: 'transparenz', kanzlei: true, l: 'Transparenzregister eingesehen am', t: 'date', req: true, past: true },
+        { k: 'transparenzStimmig', kanzlei: true, l: 'Eintrag stimmt mit Angaben überein', t: 'select', o: ['ja', 'nein – Unstimmigkeit prüfen'], req: true }
       ]
     },
     {
@@ -143,22 +144,22 @@
         { k: 'ustid', l: 'USt-IdNr.', t: 'ustid', types: ['freiberufler', 'gmbh'], ph: 'DE123456789' },
         { k: 'einkuenfte', l: 'Einkunftsarten', t: 'multi', types: ['privat', 'freiberufler'], req: true, w: 'full', o: ['Nichtselbständige Arbeit', 'Selbständige Arbeit', 'Gewerbebetrieb', 'Kapitalvermögen', 'Vermietung und Verpachtung', 'Renten / Pensionen', 'Sonstige'] },
         { k: 'vorberater', l: 'Bisheriger Steuerberater', t: 'text' },
-        { k: 'vorberaterStatus', l: 'Unterlagen Vorberater', t: 'select', o: ['nicht zutreffend', 'angefordert', 'liegen vor'], when: d => !!d.vorberater }
+        { k: 'vorberaterStatus', kanzlei: true, l: 'Unterlagen Vorberater', t: 'select', o: ['nicht zutreffend', 'angefordert', 'liegen vor'], when: d => !!d.vorberater }
       ]
     },
     {
       k: 'gwg', l: 'GwG-Identifizierung', fields: [
-        { k: 'identPerson', l: 'Identifizierte Person', t: 'text', req: true, w: 'full', hint: 'Bei Gesellschaften: Geschäftsführer bzw. auftretende Person' },
-        { k: 'identArt', l: 'Art der Identifizierung', t: 'select', o: ['persönlich mit Originaldokument', 'Kopie/Scan des Ausweises', 'Video-Ident', 'Online-Ausweis (eID)'], req: true },
-        { k: 'ausweisArt', l: 'Dokument', t: 'select', o: ['Personalausweis', 'Reisepass', 'sonstiges amtliches Dokument'], req: true },
-        { k: 'ausweisNr', l: 'Ausweisnummer', t: 'text', req: true },
-        { k: 'behoerde', l: 'Ausstellende Behörde', t: 'text', req: true },
-        { k: 'ausweisGueltig', l: 'Gültig bis', t: 'date', req: true, future: true },
+        { k: 'identPerson', kanzlei: true, l: 'Identifizierte Person', t: 'text', req: true, w: 'full', hint: 'Bei Gesellschaften: Geschäftsführer bzw. auftretende Person' },
+        { k: 'identArt', kanzlei: true, l: 'Art der Identifizierung', t: 'select', o: ['persönlich mit Originaldokument', 'Kopie/Scan des Ausweises', 'Video-Ident', 'Online-Ausweis (eID)'], req: true },
+        { k: 'ausweisArt', kanzlei: true, l: 'Dokument', t: 'select', o: ['Personalausweis', 'Reisepass', 'sonstiges amtliches Dokument'], req: true },
+        { k: 'ausweisNr', kanzlei: true, l: 'Ausweisnummer', t: 'text', req: true },
+        { k: 'behoerde', kanzlei: true, l: 'Ausstellende Behörde', t: 'text', req: true },
+        { k: 'ausweisGueltig', kanzlei: true, l: 'Gültig bis', t: 'date', req: true, future: true },
         { k: 'pep', l: 'Politisch exponierte Person (PEP)', t: 'select', o: ['nein', 'ja'], req: true },
-        { k: 'pepDetails', l: 'PEP – Funktion / Nähe', t: 'textarea', req: true, w: 'full', when: d => d.pep === 'ja' },
-        { k: 'risiko', l: 'Risikoeinstufung', t: 'select', o: ['gering', 'normal', 'erhöht'], req: true },
-        { k: 'identAm', l: 'Identifiziert am', t: 'date', req: true, past: true },
-        { k: 'identVon', l: 'Identifiziert von', t: 'text', req: true }
+        { k: 'pepDetails', kanzlei: true, l: 'PEP – Funktion / Nähe', t: 'textarea', req: true, w: 'full', when: d => d.pep === 'ja' },
+        { k: 'risiko', kanzlei: true, l: 'Risikoeinstufung', t: 'select', o: ['gering', 'normal', 'erhöht'], req: true },
+        { k: 'identAm', kanzlei: true, l: 'Identifiziert am', t: 'date', req: true, past: true },
+        { k: 'identVon', kanzlei: true, l: 'Identifiziert von', t: 'text', req: true }
       ]
     },
     {
@@ -166,19 +167,19 @@
         { k: 'iban', l: 'IBAN', t: 'iban', req: true, w: 'full' },
         { k: 'bic', l: 'BIC', t: 'text' },
         { k: 'kontoinhaber', l: 'Kontoinhaber', t: 'text', req: true },
-        { k: 'sepa', l: 'SEPA-Lastschriftmandat', t: 'select', o: ['noch offen', 'erteilt'], req: true },
-        { k: 'sepaDatum', l: 'Mandat erteilt am', t: 'date', req: true, past: true, when: d => d.sepa === 'erteilt' }
+        { k: 'sepa', kanzlei: true, l: 'SEPA-Lastschriftmandat', t: 'select', o: ['noch offen', 'erteilt'], req: true },
+        { k: 'sepaDatum', kanzlei: true, l: 'Mandat erteilt am', t: 'date', req: true, past: true, when: d => d.sepa === 'erteilt' }
       ]
     },
     { k: 'unterlagen', l: 'Unterlagen', docs: true },
     {
       k: 'mandat', l: 'Auftrag & Mandat', fields: [
-        { k: 'leistungen', l: 'Leistungsumfang', t: 'multi', req: true, w: 'full', o: ['Finanzbuchhaltung', 'Lohnabrechnung', 'Jahresabschluss', 'Einkommensteuererklärung', 'Betriebliche Steuererklärungen', 'Laufende Steuerberatung', 'Existenzgründungsberatung'] },
-        { k: 'mandatAb', l: 'Mandat ab', t: 'date', req: true },
-        { k: 'verguetung', l: 'Vergütung', t: 'select', o: ['nach StBVV', 'Pauschalvereinbarung', 'noch offen'], req: true },
-        { k: 'auftrag', l: 'Auftrag', t: 'select', o: ['offen', 'verschickt', 'unterschrieben'], req: true },
-        { k: 'vollmacht', l: 'Vollmacht Finanzverwaltung', t: 'select', o: ['offen', 'beantragt', 'erteilt'], req: true },
-        { k: 'datenschutz', l: 'Datenschutzhinweise übergeben', t: 'check', req: true, w: 'full' },
+        { k: 'leistungen', kanzlei: true, l: 'Leistungsumfang', t: 'multi', req: true, w: 'full', o: ['Finanzbuchhaltung', 'Lohnabrechnung', 'Jahresabschluss', 'Einkommensteuererklärung', 'Betriebliche Steuererklärungen', 'Laufende Steuerberatung', 'Existenzgründungsberatung'] },
+        { k: 'mandatAb', kanzlei: true, l: 'Mandat ab', t: 'date', req: true },
+        { k: 'verguetung', kanzlei: true, l: 'Vergütung', t: 'select', o: ['nach StBVV', 'Pauschalvereinbarung', 'noch offen'], req: true },
+        { k: 'auftrag', kanzlei: true, l: 'Auftrag', t: 'select', o: ['offen', 'verschickt', 'unterschrieben'], req: true },
+        { k: 'vollmacht', kanzlei: true, l: 'Vollmacht Finanzverwaltung', t: 'select', o: ['offen', 'beantragt', 'erteilt'], req: true },
+        { k: 'datenschutz', kanzlei: true, l: 'Datenschutzhinweise übergeben', t: 'check', req: true, w: 'full' },
         { k: 'notizen', l: 'Interne Notizen (nicht für den Mandanten)', t: 'textarea', w: 'full', internal: true }
       ]
     }
