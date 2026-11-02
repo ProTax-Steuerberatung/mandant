@@ -17,7 +17,7 @@ a{color:var(--petrol)}
 /* Kopfleiste */
 .top{background:var(--petrol);color:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:6px 28px}
 .brand{display:flex;align-items:center;gap:12px;color:#fff;text-decoration:none}
-.brand img{height:50px;width:auto;display:block}
+.brand img{height:64px;width:auto;display:block}
 .brand .word{font-weight:700;letter-spacing:.04em;font-size:16px}
 .brand .app{font-size:15px;font-weight:500;color:#d5e3e0;border-left:1px solid rgba(255,255,255,.3);padding-left:12px}
 .top nav{display:flex;gap:4px}
