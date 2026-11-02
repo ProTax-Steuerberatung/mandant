@@ -206,7 +206,7 @@ window.addEventListener('beforeunload', e => { if (S.saveTimer || S.saving) { e.
 
 /* ================= Rahmen ================= */
 function shell(inner) {
-  const logo = C.logoHell ? `<img src="${esc(C.logoHell)}" alt="${esc((C.kanzlei || {}).kurz || 'ProTax')}">` : `<span class="word">${esc(((C.kanzlei || {}).kurz || 'ProTax').toUpperCase())}</span>`;
+  const logo = `<img src="${esc(C.logoHell || 'icons/logo-hell.png')}" alt="${esc((C.kanzlei || {}).name || 'ProTax Steuerberatung')}">`;
   return `<header class="top">
     <a class="brand" href="#/" data-act="home" aria-label="Startseite">${logo}<span class="app">Mandant</span></a>
     ${S.user ? `<nav aria-label="Hauptnavigation"><button class="${S.view === 'liste' || S.view === 'detail' ? 'on' : ''}" data-act="home">Neuaufnahmen</button></nav>
@@ -605,7 +605,7 @@ function fmtVal(f, v) {
 function printStammblatt() {
   const rec = cur(), ev = LG.evaluate(rec), K = C.kanzlei || {};
   const cell = (f, v, key) => { const t = fmtVal(f, v); return t ? esc(t) : (rec.open[key] ? '<span class="pb-open">beim Mandanten angefragt</span>' : '—'); };
-  let html = `<div class="pb-head"><div>${C.logoDunkel ? `<img src="${esc(C.logoDunkel)}" alt="">` : `<b style="font-size:14pt;color:#113331">${esc(K.name || '')}</b>`}</div>
+  let html = `<div class="pb-head"><div><img src="${esc(C.logoDunkel || 'icons/logo-dunkel.png')}" alt="${esc(K.name || '')}"></div>
     <div class="pb-k">${esc(K.name || '')}<br>${esc(K.adresse || '')}<br>${esc([K.telefon, K.email].filter(Boolean).join(' · '))}</div></div>
     <p class="pb-title">Mandantenstammblatt</p><p class="pb-sub">${esc(rec.title)} · ${esc(SC.TYPES[rec.typ].label)}</p>
     <div class="pb-meta"><div><b>Status</b>${esc(statusLabel(rec.status))}</div><div><b>DATEV-Mandantennr.</b>${esc(rec.datevNr || '—')}</div>

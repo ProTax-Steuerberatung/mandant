@@ -15,9 +15,9 @@ a{color:var(--petrol)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* Kopfleiste */
-.top{background:var(--petrol);color:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:10px 28px}
+.top{background:var(--petrol);color:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:6px 28px}
 .brand{display:flex;align-items:center;gap:12px;color:#fff;text-decoration:none}
-.brand img{height:30px;display:block}
+.brand img{height:50px;width:auto;display:block}
 .brand .word{font-weight:700;letter-spacing:.04em;font-size:16px}
 .brand .app{font-size:15px;font-weight:500;color:#d5e3e0;border-left:1px solid rgba(255,255,255,.3);padding-left:12px}
 .top nav{display:flex;gap:4px}
@@ -209,7 +209,7 @@ dialog.wide{width:min(900px,calc(100vw - 32px))}
   #print{display:block;color:#000}
 }
 .pb-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #113331;padding-bottom:8px;margin-bottom:12px}
-.pb-head img{height:34px}
+.pb-head img{height:58px}
 .pb-k{font-size:9pt;color:#333;text-align:right}
 .pb-title{font-size:16pt;font-weight:700;color:#113331;margin:0}
 .pb-sub{font-size:10pt;color:#333;margin:2px 0 10px}
