@@ -4,7 +4,7 @@
  */
 window.CONFIG = {
   // true = Testdaten nur in diesem Browser, keine Anmeldung, nichts geht an Microsoft
-  demo: true,
+  demo: false,
 
   // aus Microsoft Entra ID (App-Registrierung „Mandant ProTax“)
   tenantId: 'c630873a-2003-4e72-975c-9ba6c08254f5',
