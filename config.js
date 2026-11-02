@@ -7,8 +7,8 @@ window.CONFIG = {
   demo: true,
 
   // aus Microsoft Entra ID (App-Registrierung „Mandant ProTax“)
-  tenantId: '',
-  clientId: '',
+  tenantId: 'c630873a-2003-4e72-975c-9ba6c08254f5',
+  clientId: '8aa10b71-d684-4ca9-8cbe-12ceb772b976',
   redirectUri: '',               // leer = aktuelle Adresse der App
 
   sharepoint: {
