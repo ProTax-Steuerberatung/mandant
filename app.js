@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.0.2';
+const VERSION = 'ProTax Mandant v.1.1';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -205,40 +205,68 @@ window.addEventListener('hashchange', () => { if (S.store) route(); });
 window.addEventListener('beforeunload', e => { if (S.saveTimer || S.saving) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ================= Rahmen ================= */
-function shell(inner) {
-  const logo = `<img src="${esc(C.logoHell || 'icons/logo-hell.png')}" alt="${esc((C.kanzlei || {}).name || 'ProTax Steuerberatung')}">`;
-  return `<header class="top">
-    <a class="brand" href="#/" data-act="home" aria-label="Startseite">${logo}<span class="app">Mandant</span></a>
-    ${S.user ? `<nav aria-label="Hauptnavigation"><button class="${S.view === 'liste' || S.view === 'detail' ? 'on' : ''}" data-act="home">Neuaufnahmen</button></nav>
-    <div class="who"><span>${esc(S.user.name)}</span><span class="av" aria-hidden="true">${esc(initials(S.user.name))}</span>${C.demo ? '' : '<button data-act="logout">Abmelden</button>'}</div>` : ''}
-  </header>
-  ${C.demo ? `<div class="demo-band">Demo-Modus: Testdaten nur in diesem Browser, keine Anmeldung, nichts geht an Microsoft.<button data-act="demo-reset">Demo zurücksetzen</button></div>` : ''}
-  <div class="wrap">${inner}</div>
-  <div class="foot">${VERSION}</div>`;
+const IC = {
+  liste: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+  mandant: '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+  pruef: '<path d="M9 4h6l1 2h3v14H5V6h3z"/><path d="m9 13 2 2 4-4"/>',
+  check: '<circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.5 2.3 2.3 4.7-5"/>',
+  datev: '<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
+  archiv: '<rect x="3.5" y="4.5" width="17" height="4" rx="1"/><path d="M5 8.5v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-10M10 12.5h4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  refresh: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 5v4h-4"/>',
+  logout: '<path d="M14 5h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h9"/>',
+  user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c.9-3.4 3.7-5.5 7-5.5s6.1 2.1 7 5.5"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
+};
+const ico = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
+const NAV = [['aktiv', 'In Arbeit', 'liste'], ['mandant', 'Beim Mandanten', 'mandant'], ['eingereicht', 'Zur Prüfung', 'pruef'], ['geprueft', 'Geprüft', 'check'], ['angelegt', 'In DATEV angelegt', 'datev'], ['abgebrochen', 'Abgebrochen', 'archiv'], ['alle', 'Alle Aufnahmen', 'liste']];
+const navLabel = k => (NAV.find(n => n[0] === k) || [0, 'Aufnahmen'])[1];
+function sideHtml() {
+  const n = k => S.recs.filter(r => k === 'aktiv' ? AKTIV.includes(r.status) : k === 'alle' ? true : r.status === k).length;
+  const cur = S.view === 'liste' ? S.filter : null;
+  return `<div class="user"><div class="avatar">${esc(initials(S.user.name))}</div><div><div class="n">${esc(S.user.name)}</div><div class="r">Mandantenaufnahme</div></div></div>
+    <button class="nav nav-new" data-act="new">${ico('plus')}<span>Neue Aufnahme</span></button>
+    <div class="side-t">Aufnahmen</div>
+    ${NAV.map(([k, l, i]) => { const c = n(k); return `<button class="nav ${cur === k ? 'on' : ''}" data-filter="${k}" ${cur === k ? 'aria-current="page"' : ''}>${ico(i)}<span>${l}</span>${c ? `<span class="cnt ${k === 'eingereicht' ? 'hot' : ''}">${c}</span>` : ''}</button>`; }).join('')}
+    <div class="ver">${esc(VERSION)}</div>`;
+}
+function shell(inner, crumb) {
+  const K = C.kanzlei || {};
+  document.body.classList.toggle('login-mode', !S.user || !['liste', 'detail'].includes(S.view));
+  const who = S.user ? `${C.demo ? '<span class="badge b-warn">Demo</span><button class="btn sm" data-act="demo-reset">Demo zurücksetzen</button>' : ''}
+    <button class="iconbtn" data-act="refresh" title="Daten neu laden" aria-label="Daten neu laden">${ico('refresh')}</button>
+    ${C.demo ? '' : `<button class="iconbtn" data-act="logout" title="Abmelden" aria-label="Abmelden">${ico('logout')}</button>`}` : '';
+  const side = S.user && ['liste', 'detail'].includes(S.view);
+  return `<header class="topbar"><a class="brand" href="#/" data-act="home" aria-label="Startseite"><span class="logo"><img src="${esc(C.logoHell || 'icons/logo.png')}" alt="${esc(K.name || 'ProTax Steuerberatung')}"></span></a><div class="who">${who}</div></header>
+  <div class="shell">${side ? `<nav class="side" aria-label="Hauptnavigation">${sideHtml()}</nav>` : ''}
+  <main>${crumb !== undefined ? `<div class="crumb">${esc(K.name || 'ProTax')}<i></i>${esc(crumb)}</div>` : ''}${inner}</main></div>`;
+}
+function loginCard(title, sub, body) {
+  return `<div class="login"><div class="login-ico">${ico('user')}</div><h1>${title}</h1><p class="login-sub">${sub}</p>${body}<p class="login-ver">${esc(VERSION)}</p></div>`;
 }
 
 function render() {
   const app = $('#app');
-  const v = S.view;
-  if (v === 'boot') app.innerHTML = shell('<div class="empty">Verbinde mit SharePoint …</div>');
-  else if (v === 'login') app.innerHTML = shell(`<div class="center"><div class="card login">
-      <h1>Mandantenaufnahme</h1><p class="muted" style="margin:0">Anmeldung mit Ihrem Microsoft-365-Konto der Kanzlei.</p>
-      <button class="btn primary" data-act="login">Mit Microsoft anmelden</button></div></div>`);
-  else if (v === 'setup') app.innerHTML = shell(`<div class="center"><div class="card login">
-      <h1>Einrichtung nicht abgeschlossen</h1>
-      <p class="muted" style="margin:0">In der SharePoint-Website fehlen die Liste „${LIST_NAME}“ und/oder die Bibliothek „${LIB_NAME}“. Sie werden jetzt einmalig angelegt.</p>
-      <button class="btn primary" data-act="setup">Listen jetzt anlegen</button></div></div>`);
-  else if (v === 'error') app.innerHTML = shell(`<div class="center"><div class="card login"><h1>Hinweis</h1>
-      <p style="margin:0">${esc(S.error)}</p><button class="btn" data-act="reload">Neu laden</button></div></div>`);
-  else if (v === 'liste') app.innerHTML = shell(viewListe());
-  else if (v === 'detail') { app.innerHTML = shell(viewDetail()); afterDetail(); }
+  const v = S.view, K = C.kanzlei || {};
+  if (v === 'boot') app.innerHTML = shell('<div class="login"><div class="empty">Verbinde mit SharePoint …</div></div>');
+  else if (v === 'login') {
+    const ms = '<svg viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>';
+    const feat = [['liste', 'Neue Mandanten im Erstgespräch erfassen'], ['mandant', 'Fehlende Angaben beim Mandanten anfordern'], ['check', 'Prüfen, Stammblatt drucken, nach DATEV übergeben']];
+    app.innerHTML = shell(loginCard('Willkommen bei Mandant', `Aufnahme neuer Mandanten für ${esc(K.name || 'die Kanzlei')}`,
+      `<ul class="login-feat">${feat.map(([i, t]) => `<li>${ico(i)}<span>${t}</span></li>`).join('')}</ul>
+      <button class="btn primary login-btn" data-act="login">${ms}<span>Mit Microsoft anmelden</span></button>
+      <p class="login-note">${ico('lock')}Anmeldung mit dem Kanzlei-Konto. Die Daten bleiben im Microsoft 365 der Kanzlei.</p>`));
+  }
+  else if (v === 'setup') app.innerHTML = shell(loginCard('Einrichtung nicht abgeschlossen', `In der SharePoint-Website fehlen die Liste „${LIST_NAME}“ und/oder die Bibliothek „${LIB_NAME}“. Sie werden jetzt einmalig angelegt.`,
+      '<button class="btn primary login-btn" data-act="setup">Listen jetzt anlegen</button>'));
+  else if (v === 'error') app.innerHTML = shell(loginCard('Hinweis', esc(S.error), '<button class="btn login-btn" data-act="reload">Neu laden</button>'));
+  else if (v === 'liste') app.innerHTML = shell(viewListe(), navLabel(S.filter));
+  else if (v === 'detail') { app.innerHTML = shell(viewDetail(), (cur() || {}).title || ''); afterDetail(); }
 }
 
 /* ================= Liste ================= */
 const AKTIV = ['entwurf', 'mandant', 'eingereicht', 'geprueft'];
 function viewListe() {
-  const counts = k => S.recs.filter(r => k === 'aktiv' ? AKTIV.includes(r.status) : k === 'alle' ? true : r.status === k).length;
-  const chips = [['aktiv', 'In Arbeit'], ...SC.STATUS.map(s => [s.k, s.l]), ['abgebrochen', 'Abgebrochen'], ['alle', 'Alle']];
   const q = S.q.trim().toLowerCase();
   const list = S.recs.filter(r => (S.filter === 'aktiv' ? AKTIV.includes(r.status) : S.filter === 'alle' ? true : r.status === S.filter))
     .filter(r => !q || (r.title + ' ' + (r.data.email || '') + ' ' + (r.datevNr || '')).toLowerCase().includes(q))
@@ -254,10 +282,9 @@ function viewListe() {
       <td class="sm muted">${fmtDT(r.updatedAt)}</td></tr>`;
   }).join('');
   return `<div class="card">
-    <div class="card-h"><div><div class="card-t">Neuaufnahmen</div><div class="sm muted">Erfassung im Erstgespräch, Nachforderung beim Mandanten, Prüfung und Übergabe an DATEV</div></div>
-      <button class="btn primary" data-act="new">${I.plus}Neue Aufnahme</button></div>
-    <div class="toolbar" role="group" aria-label="Filter">${chips.map(([k, l]) => `<button class="chip ${S.filter === k ? 'on' : ''}" data-filter="${k}">${esc(l)}<span class="n">${counts(k)}</span></button>`).join('')}
-      <label class="sr" for="q">Suche</label><input id="q" class="search" type="search" placeholder="Name, E-Mail, DATEV-Nr. …" value="${esc(S.q)}"></div>
+    <div class="card-h"><div><div class="card-t">${esc(navLabel(S.filter))} <span class="muted" style="font-weight:400">(${list.length})</span></div><div class="sm muted">Erfassung im Erstgespräch, Nachforderung beim Mandanten, Prüfung und Übergabe an DATEV</div></div>
+      <div class="row"><label class="sr" for="q">Suche</label><input id="q" class="inp search" type="search" placeholder="Name, E-Mail, DATEV-Nr. …" value="${esc(S.q)}">
+      <button class="btn primary" data-act="new">${I.plus}Neue Aufnahme</button></div></div>
     ${list.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Mandant</th><th>Status</th><th>Vollständigkeit</th><th>Beim Mandanten</th><th>Erfasst</th><th>Geändert</th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<div class="empty">${S.recs.length ? 'Keine Aufnahmen in dieser Ansicht.' : 'Noch keine Aufnahmen. Legen Sie die erste über „Neue Aufnahme“ an.'}</div>`}
   </div>`;
@@ -332,7 +359,7 @@ function viewDetail() {
       <nav class="secnav" id="secnav" aria-label="Abschnitte"></nav>
       <div class="secbody" id="secbody"></div>
     </section>
-    <aside class="side" id="side"></aside>
+    <aside class="panel" id="side"></aside>
   </div>`;
 }
 function afterDetail() { renderNav(); renderSection(); renderSide(); }
@@ -403,11 +430,11 @@ function fieldHtml(rec, f, path, opts = {}) {
   const req = opts.inGroup ? f.req : LG.isReq(f, rec.typ);
   const tog = (!opts.inGroup && !f.internal) ? `<button type="button" tabindex="-1" class="mtog" data-mopen="${path}" aria-pressed="${rec.open[path] ? 'true' : 'false'}" title="Beim Mandanten anfragen">→ Mandant</button>` : '';
   if (f.t === 'check') {
-    return `<div class="f ${f.w === 'full' ? 'full' : ''}"><div class="lab"><label class="chk"><input type="checkbox" id="${fid(path)}" data-p="${path}" ${val ? 'checked' : ''}>${esc(f.l)}${req ? '<span class="req">*</span>' : ''}</label>${tog}</div></div>`;
+    return `<div class="f fcheck ${f.w === 'full' ? 'full' : ''}"><div class="lab"><label class="chk"><input type="checkbox" id="${fid(path)}" data-p="${path}" ${val ? 'checked' : ''}>${esc(f.l)}${req ? '<span class="req">*</span>' : ''}</label>${tog}</div></div>`;
   }
   if (f.t === 'multi') {
     const arr = Array.isArray(val) ? val : [];
-    return `<div class="f full ${isOpen ? 'isopen' : ''}" role="group" aria-labelledby="${fid(path)}-l"><div class="lab"><span class="lbl" id="${fid(path)}-l">${esc(f.l)}${req ? '<span class="req">*</span>' : ''}</span>${tog}</div>
+    return `<div class="f fmulti full ${isOpen ? 'isopen' : ''}" role="group" aria-labelledby="${fid(path)}-l"><div class="lab"><span class="lbl" id="${fid(path)}-l">${esc(f.l)}${req ? '<span class="req">*</span>' : ''}</span>${tog}</div>
       <div class="multi">${f.o.map(o => `<label class="chk"><input type="checkbox" data-p="${path}" data-multi="${esc(o)}" ${arr.includes(o) ? 'checked' : ''}>${esc(o)}</label>`).join('')}</div></div>`;
   }
   return `<div class="f ${f.w === 'full' || f.t === 'textarea' ? 'full' : ''} ${isOpen ? 'isopen' : ''} ${err ? 'bad' : ''}" data-fwrap="${path}">
@@ -682,6 +709,7 @@ function bindEvents() {
         case 'login': return Auth.login();
         case 'logout': return Auth.logout();
         case 'reload': return location.reload();
+        case 'refresh': await loadAll(); toast('Daten neu geladen'); return route();
         case 'demo-reset': if (await confirmDlg('Demo zurücksetzen', 'Alle Demo-Daten löschen und neue Testdaten erzeugen?', 'Zurücksetzen')) { Demo.reset(); await Demo.init(); await loadAll(); go('#/'); } return;
         case 'setup': t.disabled = true; t.textContent = 'Lege an …';
           try { await SP.setup(); await loadAll(); toast('Listen angelegt', 'ok'); route(); } catch (err) { toast('Anlegen fehlgeschlagen: ' + err.message, 'err'); t.disabled = false; t.textContent = 'Listen jetzt anlegen'; } return;
@@ -698,7 +726,7 @@ function bindEvents() {
         case 'conflict-force': S.conflict = false; await saveNow(rec, true); return render();
       }
     }
-    if (ds.filter) { S.filter = ds.filter; return render(); }
+    if (ds.filter) { S.filter = ds.filter; if (S.view !== 'liste') return go('#/'); return render(); }
     if (ds.openRec) return go('#/a/' + ds.openRec);
     if (ds.status) return setStatus(ds.status);
     if (ds.sec) { S.sec = ds.sec; if (!PREVIEW) history.replaceState(null, '', `#/a/${rec.id}/${ds.sec}`); renderNav(); renderSection(); $('#secbody').scrollIntoView({ block: 'nearest' }); return; }
