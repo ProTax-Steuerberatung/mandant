@@ -1,8 +1,8 @@
-# Überträgt den Rückkanal (server/) per SFTP auf upload.protax.de (Alfahosting).
+# Überträgt den Rückkanal (server/) per verschlüsseltem FTP (FTPS) auf upload.protax.de (Alfahosting).
 # Läuft bei jeder Änderung im Ordner server/ und manuell über „Run workflow“.
 # Benötigte Secrets (Settings → Secrets and variables → Actions):
-#   ALFA_SFTP_HOST, ALFA_SFTP_USER, ALFA_SFTP_PASSWORD, PORTAL_SECRET
-# Optional: ALFA_SFTP_DIR (Zielordner, Standard: Startordner des SFTP-Zugangs), SMS_API_KEY
+#   ALFA_FTP_HOST, ALFA_FTP_USER, ALFA_FTP_PASSWORD, PORTAL_SECRET
+# Optional: ALFA_FTP_DIR (Zielordner, z. B. /upload; Standard: Startordner des Zugangs), SMS_API_KEY
 name: Rückkanal übertragen
 
 on:
@@ -26,15 +26,15 @@ jobs:
 
       - name: Zugangsdaten prüfen
         env:
-          H: ${{ secrets.ALFA_SFTP_HOST }}
-          U: ${{ secrets.ALFA_SFTP_USER }}
-          P: ${{ secrets.ALFA_SFTP_PASSWORD }}
+          H: ${{ secrets.ALFA_FTP_HOST }}
+          U: ${{ secrets.ALFA_FTP_USER }}
+          P: ${{ secrets.ALFA_FTP_PASSWORD }}
           S: ${{ secrets.PORTAL_SECRET }}
         run: |
           missing=""
-          [ -z "$H" ] && missing="$missing ALFA_SFTP_HOST"
-          [ -z "$U" ] && missing="$missing ALFA_SFTP_USER"
-          [ -z "$P" ] && missing="$missing ALFA_SFTP_PASSWORD"
+          [ -z "$H" ] && missing="$missing ALFA_FTP_HOST"
+          [ -z "$U" ] && missing="$missing ALFA_FTP_USER"
+          [ -z "$P" ] && missing="$missing ALFA_FTP_PASSWORD"
           [ -z "$S" ] && missing="$missing PORTAL_SECRET"
           if [ -n "$missing" ]; then echo "::error::Fehlende Secrets:$missing"; exit 1; fi
           if [ ${#S} -lt 32 ]; then echo "::error::PORTAL_SECRET muss mindestens 32 Zeichen lang sein"; exit 1; fi
@@ -57,23 +57,23 @@ jobs:
           php -l server/api.php
           php -l build/config.php
 
-      - name: Per SFTP übertragen
+      - name: Per FTPS übertragen
         env:
-          H: ${{ secrets.ALFA_SFTP_HOST }}
-          U: ${{ secrets.ALFA_SFTP_USER }}
-          P: ${{ secrets.ALFA_SFTP_PASSWORD }}
-          D: ${{ secrets.ALFA_SFTP_DIR }}
+          H: ${{ secrets.ALFA_FTP_HOST }}
+          U: ${{ secrets.ALFA_FTP_USER }}
+          P: ${{ secrets.ALFA_FTP_PASSWORD }}
+          D: ${{ secrets.ALFA_FTP_DIR }}
         run: |
           sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
           T="${D:-.}"
-          lftp -u "$U","$P" "sftp://$H" -e "
-            set sftp:auto-confirm yes; set net:max-retries 2; set net:timeout 20;
-            cd '$T' || exit 1;
+          lftp -u "$U","$P" "ftp://$H" -e "
+            set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes;
+            set ftp:passive-mode true; set net:max-retries 2; set net:timeout 20; set cmd:fail-exit yes;
+            cd '$T';
             put -O . server/api.php;
             put -O . server/.htaccess;
             put -O . build/config.php;
-            chmod 600 config.php;
-            ls -la;
+            cls -l;
             bye"
 
       - name: Rückkanal erreichbar?
