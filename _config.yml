@@ -1,0 +1,5 @@
+# GitHub Pages: diese Ordner nicht veröffentlichen
+exclude:
+  - server
+  - test
+  - README.md

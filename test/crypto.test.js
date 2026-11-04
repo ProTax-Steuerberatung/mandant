@@ -1,0 +1,21 @@
+const assert = require('assert');
+const C = require('../crypto.js');
+(async () => {
+  const kp = await C.generateKeyPair();
+  const fp = await C.fingerprint(kp.publicKey); assert.match(fp, /^[0-9A-F]{4}(-[0-9A-F]{4}){3}$/);
+  const pub = await C.importPublic(kp.publicKey), priv = await C.importPrivate(kp.privateKey);
+  const { key, fk } = await C.newDataKey(pub);
+  const data = new Uint8Array(3_000_000).map((_, i) => i % 251);
+  const ct = await C.encBytes(key, data);
+  const k2 = await C.openDataKey(priv, fk);
+  const back = await C.decBytes(k2, ct);
+  assert.strictEqual(Buffer.compare(Buffer.from(back), Buffer.from(data)), 0);
+  const t = await C.encText(key, 'Grüße – Ä'); assert.strictEqual(await C.decText(k2, t), 'Grüße – Ä');
+  const id = C.randomId(), code = C.randomCode(); assert.match(code, /^\d{6}$/); assert.match(id, /^[a-f0-9]{32}$/);
+  const box = await C.sealWithCode(code, id, { a: 1 });
+  assert.deepStrictEqual(await C.openWithCode(code, id, box), { a: 1 });
+  await assert.rejects(C.openWithCode('000000' === code ? '111111' : '000000', id, box));
+  const other = await C.generateKeyPair();
+  await assert.rejects(C.openDataKey(await C.importPrivate(other.privateKey), fk));
+  console.log('crypto ok', fp);
+})().catch(e => { console.error(e); process.exit(1); });

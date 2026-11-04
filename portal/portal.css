@@ -1,0 +1,116 @@
+/* ProTax Mandantenportal – Handy zuerst, Gestaltung wie protax.de:
+   warmer Papiergrund, Petrol als Schrift- und Knopffarbe, Gold als Akzent,
+   Playfair Display für Überschriften, Source Serif für Text (lokal eingebunden, keine Google-Abfrage). */
+@font-face{font-family:'Playfair Display';font-weight:600;font-display:swap;src:url(fonts/playfair-600.woff2) format('woff2')}
+@font-face{font-family:'Source Serif 4';font-weight:400;font-display:swap;src:url(fonts/sourceserif-400.woff2) format('woff2')}
+@font-face{font-family:'Source Serif 4';font-weight:600;font-display:swap;src:url(fonts/sourceserif-600.woff2) format('woff2')}
+:root{
+  --paper:#FBFAF7;--card:#FFFFFF;--ink:#113331;--ink-2:#33403D;--ink-3:#5E6B68;--line:#E2E0D8;--field:#C9CFC8;
+  --gold:#B08A3E;--gold-soft:#F6EFE1;--ok:#2F6B1E;--ok-bg:#EEF6E8;--err:#A32D2D;--err-bg:#FCEDEC;--warn:#7A4E0A;--warn-bg:#FBF3E3;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;--display:'Playfair Display',Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink-2);font:17px/1.55 var(--serif);-webkit-font-smoothing:antialiased;
+  padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--ink)}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.top{max-width:640px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 20px 6px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.logo{height:52px;width:auto;display:block}
+.tag{font:13px var(--sans);color:var(--ink-3)}
+main{max-width:640px;margin:0 auto;padding:12px 20px 40px;display:flex;flex-direction:column;gap:20px}
+.foot{max-width:640px;margin:0 auto;padding:0 20px calc(28px + env(safe-area-inset-bottom));font:13px/1.6 var(--sans);color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 16px}
+.foot a{color:var(--ink-3)}
+
+h1{font:600 30px/1.18 var(--display);color:var(--ink);margin:0;text-wrap:balance}
+h2{font:600 22px/1.25 var(--display);color:var(--ink);margin:0}
+.rule{width:40px;height:2px;background:var(--gold)}
+.lead{margin:0;font-size:17px;color:var(--ink-2)}
+.small{font:14px/1.5 var(--sans);color:var(--ink-3)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* Fortschritt */
+.progress{display:flex;flex-direction:column;gap:10px}
+.progress .row{display:flex;justify-content:space-between;align-items:center;font:13px var(--sans);color:var(--ink-3)}
+.bars{display:grid;gap:4px}
+.bars span{height:4px;border-radius:2px;background:var(--line)}
+.bars span.done{background:var(--gold)}.bars span.cur{background:var(--ink)}
+.back{background:none;border:none;padding:10px 10px 10px 0;margin-left:-2px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font:14px var(--sans);color:var(--ink)}
+.back svg{width:18px;height:18px}
+
+/* Knöpfe */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px;padding:0 22px;border-radius:12px;border:1.5px solid var(--ink);background:var(--ink);color:#fff;
+  font:600 16px var(--sans);cursor:pointer;text-decoration:none;width:100%}
+.btn:hover{background:#0b2523}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:#fff;color:var(--ink)}
+.btn.ghost:hover{background:var(--gold-soft)}
+.btn.sm{min-height:44px;font-size:14px;padding:0 14px;width:auto}
+.btn.danger{background:#fff;color:var(--err);border-color:#E3B3B3}
+.btn:focus-visible,.pill:has(input:focus-visible),.chk:has(input:focus-visible){outline:3px solid #D7C08F;outline-offset:2px}
+.actions{display:flex;flex-direction:column;gap:10px;position:sticky;bottom:0;background:linear-gradient(to top,var(--paper) 75%,rgba(251,250,247,0));padding:14px 0 calc(10px + env(safe-area-inset-bottom));margin-top:4px}
+
+/* Felder */
+.f{display:flex;flex-direction:column;gap:6px}
+.f > label,.f .lbl{font:600 14px var(--sans);color:var(--ink)}
+.f .hint{font:13px var(--sans);color:var(--ink-3)}
+.f input:not([type=checkbox]):not([type=radio]),.f select,.f textarea{width:100%;min-height:50px;padding:10px 14px;border:1px solid var(--field);border-radius:10px;background:#fff;font:17px var(--sans);color:var(--ink)}
+.f textarea{min-height:96px;line-height:1.45}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border:2px solid var(--ink);padding:9px 13px}
+.f.bad input,.f.bad select{border-color:var(--err);background:#FFFBFB}
+.f .err{font:13px var(--sans);color:var(--err)}
+.f .err:empty{display:none}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{position:relative;display:inline-flex;align-items:center;min-height:46px;padding:0 16px;border:1px solid var(--field);border-radius:999px;background:#fff;font:15px var(--sans);cursor:pointer}
+.pill input{position:absolute;opacity:0;pointer-events:none}
+.pill:has(input:checked){border:2px solid var(--ink);padding:0 15px;background:var(--gold-soft);font-weight:600;color:var(--ink)}
+.chk{display:flex;align-items:flex-start;gap:12px;min-height:44px;padding:8px 0;font:16px/1.4 var(--sans);cursor:pointer}
+.chk input{width:22px;height:22px;margin:0;flex-shrink:0;accent-color:var(--ink)}
+.multi{display:flex;flex-direction:column}
+
+.group{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:14px;background:#FDFCF9}
+.group-h{display:flex;justify-content:space-between;align-items:center;font:600 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
+
+/* Unterlagen */
+.doc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.doc.has{border-color:#C9DCC0;background:var(--ok-bg)}
+.doc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.doc-t{font:600 16px/1.35 var(--sans);color:var(--ink)}
+.doc-s{font:13px var(--sans);color:var(--ink-3);white-space:nowrap}
+.doc.has .doc-s{color:var(--ok);font-weight:600}
+.doc-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.up{position:relative;overflow:hidden}
+.up input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+.files{display:flex;flex-direction:column;gap:6px}
+.file{display:flex;align-items:center;gap:10px;font:14px var(--sans);background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 12px}
+.file .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .sz{color:var(--ink-3);font-size:12px}
+.file button{border:none;background:none;min-width:44px;min-height:40px;cursor:pointer;color:var(--err)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar span{display:block;height:100%;background:var(--ink);transition:width .2s}
+
+/* Meldungen */
+.note{border-radius:12px;padding:12px 14px;font:15px/1.45 var(--sans)}
+.note.err{background:var(--err-bg);color:var(--err)}
+.note.warn{background:var(--warn-bg);color:var(--warn)}
+.note.ok{background:var(--ok-bg);color:var(--ok)}
+.lock{display:flex;gap:8px;align-items:center;justify-content:center;font:13px var(--sans);color:var(--ink-3);text-align:center}
+.lock svg{width:14px;height:14px;flex-shrink:0}
+.code{letter-spacing:.5em;text-align:center;font:600 26px var(--sans)!important;padding-left:.5em!important}
+.check-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.check-list li{display:flex;gap:10px;align-items:flex-start;font:16px/1.4 var(--sans);color:var(--ink-2)}
+.check-list svg{width:20px;height:20px;flex-shrink:0;margin-top:1px;color:var(--ink)}
+.sum{display:flex;flex-direction:column;gap:2px}
+.sum dt{font:13px var(--sans);color:var(--ink-3)}
+.sum dd{margin:0 0 10px;font:16px var(--sans);color:var(--ink);word-break:break-word}
+.sum dd.empty{color:var(--warn);font-style:italic}
+.badge-ok{width:64px;height:64px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.badge-ok svg{width:30px;height:30px}
+@media (min-width:700px){h1{font-size:36px}.doc-btns{grid-template-columns:auto auto;justify-content:start}}
+@media (prefers-reduced-motion:reduce){.bar span{transition:none}}

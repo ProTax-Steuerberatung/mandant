@@ -32,6 +32,16 @@ window.CONFIG = {
 
   maxUploadMB: 25,
 
+  // Mandantenportal: Mandant ergänzt fehlende Angaben und lädt Unterlagen hoch
+  portal: {
+    api: 'https://upload.protax.de/api.php',          // Rückkanal auf Alfahosting
+    url: 'https://mandant.protax.de/portal/',          // Seite für den Mandanten
+    publicKey: null,                                   // öffentlicher Kanzlei-Schlüssel (wird bei der Einrichtung eingetragen)
+    gueltigTage: 14,                                   // Vorgabe für die Gültigkeit des Links
+    datenschutz: 'https://www.protax.de/datenschutz',
+    impressum: 'https://www.protax.de/impressum'
+  },
+
   // Satz in der E-Mail an den Mandanten, wie Unterlagen zu uns kommen
   mailHinweis: 'Gerne können Sie uns die Unterlagen als Antwort auf diese E-Mail zusenden oder zu unserem nächsten Termin mitbringen.'
 };

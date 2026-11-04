@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.2.2';
+const VERSION = 'ProTax Mandant v.1.3';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -48,6 +48,8 @@ const Demo = {
   href(f) { return this.blobs[f.id] || f.url || ''; },
   async mailToken() { return 'demo'; },
   async createDraft() { return null; },
+  async getPortalKey() { try { return JSON.parse(localStorage.getItem('protax-mandant-demo-portalkey') || 'null'); } catch (e) { return null; } },
+  async putPortalKey(k) { try { localStorage.setItem('protax-mandant-demo-portalkey', JSON.stringify(k)); } catch (e) { throw new Error('Browser-Speicher nicht verfügbar'); } },
   reset() { try { localStorage.removeItem(this.key); } catch (e) { } this.mem = null; }
 };
 
@@ -67,6 +69,13 @@ const Auth = {
     this.account = this.pca.getActiveAccount() || this.pca.getAllAccounts()[0] || null;
     if (this.account) this.pca.setActiveAccount(this.account);
     return this.account;
+  },
+  /** ID-Token der Anmeldung (für den Rückkanal des Mandantenportals) */
+  async idToken() {
+    const exp = t => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch (e) { return 0; } };
+    let r = await this.pca.acquireTokenSilent({ scopes: this.scopes, account: this.account });
+    if (!r.idToken || exp(r.idToken) < Date.now() + 5 * 60000) r = await this.pca.acquireTokenSilent({ scopes: this.scopes, account: this.account, forceRefresh: true });
+    return r.idToken;
   },
   login() { return this.pca.loginRedirect({ scopes: this.scopes, prompt: 'select_account' }); },
   logout() { return this.pca.logoutRedirect({ account: this.account }); },
@@ -170,9 +179,21 @@ const SP = {
     const msg = await this.g('/me/messages', { method: 'POST', token, json: {
       subject: m.subject, body: { contentType: 'HTML', content: m.html },
       toRecipients: m.to ? [{ emailAddress: { address: m.to } }] : [],
-      attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: m.fileName, contentType: 'application/pdf', contentBytes: m.pdfB64 }]
+      ...(m.pdfB64 ? { attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: m.fileName, contentType: 'application/pdf', contentBytes: m.pdfB64 }] } : {})
     } });
     return msg.webLink;
+  },
+  KEYPATH: '_System/portal-schluessel.json',
+  async getPortalKey() {
+    let it;
+    try { it = await this.g(`/drives/${this.driveId}/root:/${this.KEYPATH}?select=id,name`); }
+    catch (e) { if (e.status === 404) return null; throw e; }
+    const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${this.driveId}/items/${it.id}/content`, { headers: { Authorization: 'Bearer ' + await Auth.token() } });
+    if (!r.ok) throw new Error('Schlüsseldatei nicht lesbar (HTTP ' + r.status + ')');
+    return r.json();
+  },
+  async putPortalKey(obj) {
+    await this.g(`/drives/${this.driveId}/root:/${this.KEYPATH}:/content?@microsoft.graph.conflictBehavior=fail`, { method: 'PUT', body: JSON.stringify(obj), headers: { 'Content-Type': 'application/json' } });
   }
 };
 
@@ -210,7 +231,11 @@ const cur = () => S.recs.find(r => r.id === S.id);
   }
 })();
 
-async function loadAll() { S.recs = await S.store.loadAll(); S.recs.forEach(r => { r.pct = LG.evaluate(r).pct; }); }
+async function loadAll() { S.recs = await S.store.loadAll(); S.recs.forEach(r => { r.pct = LG.evaluate(r).pct; }); syncPortal(); }
+function syncPortal() {
+  if (!window.PORTAL) return;
+  PORTAL.sync().then(ch => { if (ch && (S.view === 'liste' || (S.view === 'detail' && !S.saveTimer && !S.saving))) render(); }).catch(e => console.warn(e));
+}
 const PREVIEW = !!window.__PREVIEW;
 function route() {
   const h = PREVIEW ? (S.hash || '') : location.hash;
@@ -525,9 +550,12 @@ function renderSide() {
       ${ev.openList.length ? `<ul class="openlist">${ev.openList.map(o => `<li>${esc(o.label)}</li>`).join('')}</ul>` : '<div class="sm muted">Noch nichts markiert. Über „→ Mandant“ an einem Feld oder einer Unterlage festlegen, was der Mandant nachliefern soll.</div>'}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${canFlag ? `<button class="btn sm" data-act="flag-all">Alle fehlenden übernehmen (${canFlag})</button>` : ''}
-        <button class="btn sm primary" data-act="mail" ${ev.openList.length ? '' : 'disabled'}>${I.mail}E-Mail vorbereiten</button>
+        <button class="btn sm primary" data-act="portal-send" ${ev.openList.length ? '' : 'disabled'}>Portal-Link senden</button>
+        <button class="btn sm" data-act="mail" ${ev.openList.length ? '' : 'disabled'}>${I.mail}Checkliste per E-Mail</button>
       </div>
     </section>
+    ${rec.vorschlag ? `<section class="card card-b" style="display:flex;flex-direction:column;gap:10px;border-color:var(--ok)"><span class="card-t">Angaben vom Mandanten</span><div class="sm">${Object.keys(rec.vorschlag.values || {}).length + Object.keys(rec.vorschlag.groups || {}).length} Angabe(n) warten auf Übernahme.</div><button class="btn primary" data-act="portal-review">Prüfen und übernehmen</button></section>` : ''}
+    ${window.PORTAL ? PORTAL.cardHtml(rec) : ''}
     <section class="card card-b" aria-label="Verlauf">
       <div class="card-t" style="margin-bottom:8px">Verlauf</div>
       <ul class="hist">${(rec.history || []).slice(-8).reverse().map(h => `<li><time>${fmtDT(h.at)} · ${esc(h.by)}</time>${esc(h.t)}</li>`).join('')}</ul>
@@ -744,6 +772,7 @@ function bindEvents() {
     const t = e.target.closest('button, a[data-act]'); if (!t) return;
     const ds = t.dataset, rec = cur();
     if (t.tagName === 'A' && ds.act) e.preventDefault();
+    if (ds.act && ds.act.startsWith('portal-') && window.PORTAL) return PORTAL.act(ds.act, rec, t);
     if (ds.act) {
       switch (ds.act) {
         case 'home': return go('#/');
