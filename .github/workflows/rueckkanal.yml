@@ -1,0 +1,83 @@
+# Überträgt den Rückkanal (server/) per SFTP auf upload.protax.de (Alfahosting).
+# Läuft bei jeder Änderung im Ordner server/ und manuell über „Run workflow“.
+# Benötigte Secrets (Settings → Secrets and variables → Actions):
+#   ALFA_SFTP_HOST, ALFA_SFTP_USER, ALFA_SFTP_PASSWORD, PORTAL_SECRET
+# Optional: ALFA_SFTP_DIR (Zielordner, Standard: Startordner des SFTP-Zugangs), SMS_API_KEY
+name: Rückkanal übertragen
+
+on:
+  push:
+    branches: [main]
+    paths: ['server/**', '.github/workflows/rueckkanal.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rueckkanal
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zugangsdaten prüfen
+        env:
+          H: ${{ secrets.ALFA_SFTP_HOST }}
+          U: ${{ secrets.ALFA_SFTP_USER }}
+          P: ${{ secrets.ALFA_SFTP_PASSWORD }}
+          S: ${{ secrets.PORTAL_SECRET }}
+        run: |
+          missing=""
+          [ -z "$H" ] && missing="$missing ALFA_SFTP_HOST"
+          [ -z "$U" ] && missing="$missing ALFA_SFTP_USER"
+          [ -z "$P" ] && missing="$missing ALFA_SFTP_PASSWORD"
+          [ -z "$S" ] && missing="$missing PORTAL_SECRET"
+          if [ -n "$missing" ]; then echo "::error::Fehlende Secrets:$missing"; exit 1; fi
+          if [ ${#S} -lt 32 ]; then echo "::error::PORTAL_SECRET muss mindestens 32 Zeichen lang sein"; exit 1; fi
+
+      - name: config.php erzeugen
+        env:
+          PORTAL_SECRET: ${{ secrets.PORTAL_SECRET }}
+          SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
+        run: |
+          mkdir -p build
+          python3 - <<'PY'
+          import os, re
+          esc = lambda v: v.replace('\\', '\\\\').replace("'", "\\'")
+          s = open('server/config.example.php', encoding='utf-8').read()
+          s = re.sub(r"'secret' => '[^']*'", "'secret' => '" + esc(os.environ['PORTAL_SECRET']) + "'", s)
+          s = re.sub(r"'sms_api_key' => '[^']*'", "'sms_api_key' => '" + esc(os.environ.get('SMS_API_KEY', '')) + "'", s)
+          s = s.replace('Diese Datei als config.php neben api.php ablegen und ausfüllen.', 'Automatisch erzeugt von GitHub Actions – nicht von Hand ändern.')
+          open('build/config.php', 'w', encoding='utf-8').write(s)
+          PY
+          php -l server/api.php
+          php -l build/config.php
+
+      - name: Per SFTP übertragen
+        env:
+          H: ${{ secrets.ALFA_SFTP_HOST }}
+          U: ${{ secrets.ALFA_SFTP_USER }}
+          P: ${{ secrets.ALFA_SFTP_PASSWORD }}
+          D: ${{ secrets.ALFA_SFTP_DIR }}
+        run: |
+          sudo apt-get -qq update && sudo apt-get -qq install -y lftp >/dev/null
+          T="${D:-.}"
+          lftp -u "$U","$P" "sftp://$H" -e "
+            set sftp:auto-confirm yes; set net:max-retries 2; set net:timeout 20;
+            cd '$T' || exit 1;
+            put -O . server/api.php;
+            put -O . server/.htaccess;
+            put -O . build/config.php;
+            chmod 600 config.php;
+            ls -la;
+            bye"
+
+      - name: Rückkanal erreichbar?
+        run: |
+          r=$(curl -s --max-time 20 "https://upload.protax.de/api.php?r=info" || true)
+          echo "Antwort: $r"
+          echo "$r" | grep -q "Anmeldung fehlt" && echo "Rückkanal läuft." || echo "::warning::Unerwartete Antwort – SSL, PHP-Version und Zielordner prüfen."
