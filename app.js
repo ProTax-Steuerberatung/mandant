@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.3.1';
+const VERSION = 'ProTax Mandant v.1.3.2';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -46,6 +46,7 @@ const Demo = {
   async reload(rec) { return structuredClone((this.read() || []).find(r => r.id === rec.id)); },
   async upload(rec, docKey, file) { const id = uid(); this.blobs[id] = URL.createObjectURL(file); return { id, name: file.name, size: file.size, url: '' }; },
   href(f) { return this.blobs[f.id] || f.url || ''; },
+  async removeFile(f) { delete this.blobs[f.id]; return 'geloescht'; },
   async mailToken() { return 'demo'; },
   async createDraft() { return null; },
   async getPortalKey() { try { return JSON.parse(localStorage.getItem('protax-mandant-demo-portalkey') || 'null'); } catch (e) { return null; } },
@@ -170,6 +171,17 @@ const SP = {
     return { id: it.id, name: it.name, size: it.size, url: it.webUrl };
   },
   href(f) { return f.url || ''; },
+  /** Datei löschen (landet im SharePoint-Papierkorb). Ohne Löschrecht: als ENTFERNT umbenennen. */
+  async removeFile(f) {
+    if (!f.id) return 'geloescht';
+    try { await this.g(`/drives/${this.driveId}/items/${f.id}`, { method: 'DELETE' }); return 'geloescht'; }
+    catch (e) {
+      if (e.status === 404) return 'geloescht';
+      if (e.status !== 403 && e.status !== 401) throw e;
+      await this.g(`/drives/${this.driveId}/items/${f.id}`, { method: 'PATCH', json: { name: 'ENTFERNT_' + f.name } });
+      return 'markiert';
+    }
+  },
   MAIL: ['Mail.ReadWrite'],
   async mailToken() {
     try { return await Auth.token(this.MAIL); }
@@ -509,7 +521,7 @@ function docsHtml(rec) {
         <select id="ds-${doc.k}" data-docstate="${doc.k}">${SC.DOC_STATES.map(s => `<option value="${s.k}" ${s.k === state ? 'selected' : ''} ${s.k === 'datei' && !files.length ? 'disabled' : ''}>${esc(s.l)}</option>`).join('')}</select>
         <span class="btn sm up">${I.up}Hochladen<input type="file" multiple data-upload="${doc.k}" accept=".pdf,.jpg,.jpeg,.png,.heic,.tif,.tiff,.docx,.xlsx" aria-label="Datei hochladen: ${esc(doc.l)}"></span>
       </div>
-      ${files.length ? `<div class="files">${files.map(f => { const h = S.store.href(f); return h ? `<a class="file" href="${esc(h)}" target="_blank" rel="noopener">${I.file}${esc(f.name)}</a>` : `<span class="file" title="In der Demo nach dem Neuladen nicht mehr verfügbar">${I.file}${esc(f.name)}</span>`; }).join('')}</div>` : ''}
+      ${files.length ? `<div class="files">${files.map((f, i) => { const h = S.store.href(f); return `<span class="filechip">${h ? `<a class="file" href="${esc(h)}" target="_blank" rel="noopener" title="Öffnen">${I.file}${esc(f.name)}</a>` : `<span class="file" title="In der Demo nach dem Neuladen nicht mehr verfügbar">${I.file}${esc(f.name)}</span>`}<button type="button" class="fdel" data-fdel="${doc.k}|${i}" title="Datei entfernen" aria-label="${esc(f.name)} entfernen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5M7 7v4M9 7v4"/></svg></button></span>`; }).join('')}</div>` : ''}
     </div>`;
   }).join('')}</div><div class="fhint"><b>Tipp:</b> Dateien einfach mit der Maus auf die passende Zeile ziehen. · PDF, Bilder, Word, Excel · max. ${max} MB je Datei · Ablage in SharePoint, Bibliothek „${LIB_NAME}“, Ordner „${esc(rec.folder || '')}“</div>`;
 }
@@ -808,6 +820,18 @@ function bindEvents() {
     }
     if (ds.mopen) { rec.open[ds.mopen] = !rec.open[ds.mopen]; if (!rec.open[ds.mopen]) delete rec.open[ds.mopen]; t.setAttribute('aria-pressed', rec.open[ds.mopen] ? 'true' : 'false'); touch(rec); refreshLive(ds.mopen.startsWith('doc:') ? null : ds.mopen); if (ds.mopen.startsWith('doc:')) renderSection(); return; }
     if (ds.gadd) { if (!Array.isArray(rec.data[ds.gadd])) rec.data[ds.gadd] = []; rec.data[ds.gadd].push({}); touch(rec); rerenderKeepFocus(); return; }
+    if (ds.fdel) {
+      const [k, i] = ds.fdel.split('|'), st = rec.docs[k] || {}, f = (st.files || [])[+i]; if (!f) return;
+      if (!await confirmDlg('Datei entfernen', `„${f.name}“ aus der Aufnahme entfernen? Die Datei wird in SharePoint gelöscht und liegt danach noch 93 Tage im Papierkorb.`, 'Entfernen')) return;
+      t.disabled = true;
+      let how;
+      try { how = await S.store.removeFile(f); } catch (e) { t.disabled = false; return toast('Entfernen fehlgeschlagen: ' + e.message, 'err'); }
+      st.files.splice(+i, 1);
+      if (!st.files.length && st.state === 'datei') st.state = 'offen';
+      touch(rec, `Datei entfernt: ${f.name}`);
+      toast(how === 'markiert' ? 'Aus der Aufnahme entfernt. In SharePoint als „ENTFERNT_…“ markiert – endgültig löschen kann die Kanzleileitung.' : 'Datei entfernt', 'ok');
+      return rerenderKeepFocus();
+    }
     if (ds.gdel) { const [g, i] = ds.gdel.split('.'); if (!await confirmDlg('Eintrag entfernen', 'Diesen Eintrag mit allen Angaben entfernen?', 'Entfernen')) return; rec.data[g].splice(+i, 1); touch(rec); rerenderKeepFocus(); return; }
   });
 

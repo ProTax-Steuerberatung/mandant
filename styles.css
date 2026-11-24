@@ -196,6 +196,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .doc .files{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
 .file{display:inline-flex;align-items:center;gap:6px;font-size:13px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text);text-decoration:none}
 .file:hover{border-color:var(--ink)}
+.filechip{display:inline-flex;align-items:stretch}
+.filechip .file{border-top-right-radius:0;border-bottom-right-radius:0}
+.fdel{display:inline-flex;align-items:center;justify-content:center;width:32px;border:1px solid var(--border);border-left:none;border-radius:0 6px 6px 0;background:var(--bg2);color:var(--text3);cursor:pointer}
+.fdel svg{width:15px;height:15px}
+.fdel:hover{color:var(--err);background:var(--err-bg);border-color:var(--err)}
+.fdel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fdel:disabled{opacity:.4;cursor:default}
 .up{position:relative;overflow:hidden}
 .up input{position:absolute;inset:0;opacity:0;cursor:pointer}
 
