@@ -229,10 +229,10 @@
 
   /* ---------------- Unterlagen ---------------- */
   function docsHtml() {
-    return `<h1>Unterlagen</h1><p class="lead">Bitte fotografieren Sie die Unterlagen oder wählen Sie eine Datei (PDF oder Foto).</p>
+    return `<h1>Unterlagen</h1><p class="lead">Bitte fotografieren Sie die Unterlagen oder wählen Sie eine Datei (PDF oder Foto). Am Computer können Sie Dateien auch einfach auf das passende Feld ziehen.</p>
       <div class="stack">${docList().map(d => {
         const fs = S.files.filter(f => f.doc === d.k), up = Object.values(S.up).filter(u => u.doc === d.k);
-        return `<div class="doc ${fs.length ? 'has' : ''}"><div class="doc-h"><span class="doc-t">${esc(d.l)}</span><span class="doc-s">${fs.length ? fs.length + ' Datei' + (fs.length > 1 ? 'en' : '') : 'fehlt'}</span></div>
+        return `<div class="doc ${fs.length ? 'has' : ''}" data-drop="${d.k}"><div class="doc-h"><span class="doc-t">${esc(d.l)}</span><span class="doc-s">${fs.length ? fs.length + ' Datei' + (fs.length > 1 ? 'en' : '') : 'fehlt'}</span></div>
           ${fs.length || up.length ? `<div class="files">${fs.map(f => `<div class="file"><span class="n">${esc(S.names[f.fid] || 'Datei')}</span><span class="sz">${mb(f.size)}</span><button type="button" data-del="${f.fid}" aria-label="Datei entfernen">${I.x}</button></div>`).join('')}
             ${up.map(u => `<div class="file" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px 12px"><span class="n">${esc(u.name)} – ${u.err ? `<b style="color:var(--err)">${esc(u.err)}</b>` : 'wird verschlüsselt hochgeladen …'}</span>${u.err ? '' : `<div class="bar"><span style="width:${u.pct}%"></span></div>`}</div>`).join('')}</div>` : ''}
           <div class="doc-btns"><span class="btn ghost sm up">${I.cam}Foto<input type="file" accept="image/*" capture="environment" data-up="${d.k}" aria-label="Foto aufnehmen: ${esc(d.l)}"></span>
@@ -371,6 +371,11 @@
       if (after !== before || el.type === 'radio' || el.tagName === 'SELECT') { const y = window.scrollY; render(); window.scrollTo(0, y); return; }
       showErr(p);
     };
+    const hasFiles = e => [...((e.dataTransfer || {}).types || [])].includes('Files');
+    const clearDrop = () => document.querySelectorAll('.doc.dragover').forEach(d => d.classList.remove('dragover'));
+    app.ondragover = e => { if (!hasFiles(e)) return; e.preventDefault(); const d = e.target.closest('[data-drop]'); e.dataTransfer.dropEffect = d ? 'copy' : 'none'; clearDrop(); if (d) d.classList.add('dragover'); };
+    app.ondragleave = e => { const d = e.target.closest('[data-drop]'); if (d && !d.contains(e.relatedTarget)) d.classList.remove('dragover'); };
+    app.ondrop = e => { if (!hasFiles(e)) return; e.preventDefault(); clearDrop(); const d = e.target.closest('[data-drop]'); if (!d) return; [...e.dataTransfer.files].forEach(f => upload(d.dataset.drop, f)); };
     app.onfocusout = e => { if (e.target.dataset && e.target.dataset.p) showErr(e.target.dataset.p); };
   }
   function fieldOf(path) {
@@ -385,5 +390,7 @@
   }
   function alertNote(t) { const n = document.createElement('div'); n.className = 'note err'; n.textContent = t; $('#app').prepend(n); setTimeout(() => n.remove(), 6000); }
 
+  window.addEventListener('dragover', e => { if ([...((e.dataTransfer || {}).types || [])].includes('Files')) e.preventDefault(); });
+  window.addEventListener('drop', e => { if ([...((e.dataTransfer || {}).types || [])].includes('Files')) e.preventDefault(); });
   start();
 })();

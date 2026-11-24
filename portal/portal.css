@@ -114,3 +114,5 @@ h2{font:600 22px/1.25 var(--display);color:var(--ink);margin:0}
 .badge-ok svg{width:30px;height:30px}
 @media (min-width:700px){h1{font-size:36px}.doc-btns{grid-template-columns:auto auto;justify-content:start}}
 @media (prefers-reduced-motion:reduce){.bar span{transition:none}}
+
+.doc.dragover,.doc.has.dragover{border:2px dashed var(--ink);background:var(--gold-soft)}

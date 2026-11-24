@@ -1,6 +1,6 @@
 /* ProTax Mandant – Oberfläche, Anmeldung, Speicherung (Demo / SharePoint) */
 'use strict';
-const VERSION = 'ProTax Mandant v.1.3';
+const VERSION = 'ProTax Mandant v.1.3.1';
 const C = window.CONFIG || {}, SC = window.SCHEMA, LG = window.LOGIC;
 const LIST_NAME = 'MA_Aufnahmen', LIB_NAME = 'MA_Unterlagen';
 
@@ -501,7 +501,7 @@ function docsHtml(rec) {
   return `<div class="docs">${docs.map(doc => {
     const st = (rec.docs[doc.k] || {}), files = st.files || [], state = st.state || 'offen', key = 'doc:' + doc.k;
     const isOpen = rec.open[key] && state === 'offen';
-    return `<div class="doc ${isOpen ? 'isopen' : ''}">
+    return `<div class="doc ${isOpen ? 'isopen' : ''}" data-drop="${doc.k}" data-drop-label="${esc(doc.l)}">
       <div><div class="dl">${esc(doc.l)}${doc.req ? '<span class="req">*</span>' : ''}</div></div>
       <div class="dctl">
         <button type="button" tabindex="-1" class="mtog" data-mopen="${key}" aria-pressed="${rec.open[key] ? 'true' : 'false'}">→ Mandant</button>
@@ -511,7 +511,7 @@ function docsHtml(rec) {
       </div>
       ${files.length ? `<div class="files">${files.map(f => { const h = S.store.href(f); return h ? `<a class="file" href="${esc(h)}" target="_blank" rel="noopener">${I.file}${esc(f.name)}</a>` : `<span class="file" title="In der Demo nach dem Neuladen nicht mehr verfügbar">${I.file}${esc(f.name)}</span>`; }).join('')}</div>` : ''}
     </div>`;
-  }).join('')}</div><div class="fhint">PDF, Bilder, Word, Excel · max. ${max} MB je Datei · Ablage in SharePoint, Bibliothek „${LIB_NAME}“, Ordner „${esc(rec.folder || '')}“</div>`;
+  }).join('')}</div><div class="fhint"><b>Tipp:</b> Dateien einfach mit der Maus auf die passende Zeile ziehen. · PDF, Bilder, Word, Excel · max. ${max} MB je Datei · Ablage in SharePoint, Bibliothek „${LIB_NAME}“, Ordner „${esc(rec.folder || '')}“</div>`;
 }
 function renderSection() {
   const rec = cur(), el = $('#secbody'); if (!el) return;
@@ -845,20 +845,49 @@ function bindEvents() {
       touch(rec, `Unterlage „${(SC.DOCS.find(d => d.k === k) || {}).l}“: ${SC.DOC_STATES.find(s => s.k === el.value).l}`); return rerenderKeepFocus();
     }
     if (el.dataset.upload) {
-      const k = el.dataset.upload, files = [...el.files], max = (C.maxUploadMB || 25) * 1024 * 1024; el.value = '';
-      for (const f of files) {
-        if (f.size > max) { toast(`${f.name}: zu groß (max. ${C.maxUploadMB || 25} MB)`, 'err'); continue; }
-        toast(`Lade „${f.name}“ hoch …`);
-        try {
-          const meta = await S.store.upload(rec, k, f);
-          const st = rec.docs[k] = { ...(rec.docs[k] || {}), files: [...((rec.docs[k] || {}).files || []), { ...meta, at: nowIso(), by: S.user.name }] };
-          st.state = 'datei';
-          touch(rec, `Datei hochgeladen: ${meta.name}`); toast('Hochgeladen', 'ok');
-        } catch (err) { toast(`Upload fehlgeschlagen (${f.name}): ${err.message}`, 'err'); }
-      }
-      return rerenderKeepFocus();
+      const files = [...el.files]; el.value = '';
+      return uploadFiles(rec, el.dataset.upload, files);
     }
   });
+
+  /* Ziehen & Ablegen: Dateien auf eine Unterlagen-Zeile ziehen */
+  const hasFiles = e => [...((e.dataTransfer || {}).types || [])].includes('Files');
+  const clearDrop = () => document.querySelectorAll('.doc.dragover').forEach(d => d.classList.remove('dragover'));
+  app.addEventListener('dragover', e => {
+    if (!hasFiles(e)) return;
+    const d = e.target.closest('[data-drop]'); e.preventDefault();
+    e.dataTransfer.dropEffect = d ? 'copy' : 'none';
+    if (d && !d.classList.contains('dragover')) { clearDrop(); d.classList.add('dragover'); }
+    if (!d) clearDrop();
+  });
+  app.addEventListener('dragleave', e => { const d = e.target.closest('[data-drop]'); if (d && !d.contains(e.relatedTarget)) d.classList.remove('dragover'); });
+  app.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); clearDrop();
+    const d = e.target.closest('[data-drop]'), rec = cur();
+    if (!d || !rec) return toast('Bitte die Datei auf eine Unterlagen-Zeile ziehen.', 'err');
+    uploadFiles(rec, d.dataset.drop, [...e.dataTransfer.files]);
+  });
+  // Datei neben das Ziel fallen lassen: Browser soll sie nicht öffnen
+  window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', e => { if (hasFiles(e)) { e.preventDefault(); clearDrop(); } });
+}
+const UPLOAD_EXT = /\.(pdf|jpe?g|png|heic|heif|tiff?|docx?|xlsx?)$/i;
+async function uploadFiles(rec, k, files) {
+  const max = (C.maxUploadMB || 25) * 1024 * 1024;
+  for (const f of files) {
+    if (!f.size && !f.type) { toast(`${f.name}: Ordner können nicht hochgeladen werden`, 'err'); continue; }
+    if (!UPLOAD_EXT.test(f.name)) { toast(`${f.name}: Dateityp nicht erlaubt (PDF, Bilder, Word, Excel)`, 'err'); continue; }
+    if (f.size > max) { toast(`${f.name}: zu groß (max. ${C.maxUploadMB || 25} MB)`, 'err'); continue; }
+    toast(`Lade „${f.name}“ hoch …`);
+    try {
+      const meta = await S.store.upload(rec, k, f);
+      const st = rec.docs[k] = { ...(rec.docs[k] || {}), files: [...((rec.docs[k] || {}).files || []), { ...meta, at: nowIso(), by: S.user.name }] };
+      st.state = 'datei';
+      touch(rec, `Datei hochgeladen: ${meta.name}`); toast('Hochgeladen', 'ok');
+    } catch (err) { toast(`Upload fehlgeschlagen (${f.name}): ${err.message}`, 'err'); }
+  }
+  if (S.view === 'detail' && cur() === rec) rerenderKeepFocus();
 }
 function visibleSig(rec) {
   return LG.sectionsFor(rec.typ).map(sec => LG.fieldsFor(sec, rec).map(f => f.t === 'group'
