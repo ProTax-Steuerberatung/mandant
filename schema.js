@@ -198,7 +198,8 @@
     { k: 'jab', l: 'Letzter Jahresabschluss', types: ['gmbh'] },
     { k: 'bescheideFirma', l: 'Letzte Steuerbescheide (KSt, GewSt, USt)', types: ['gmbh'] },
     { k: 'auftragDoc', l: 'Unterschriebener Auftrag und Vollmacht', req: true },
-    { k: 'sepaDoc', l: 'Unterschriebenes SEPA-Lastschriftmandat', req: true }
+    { k: 'sepaDoc', l: 'Unterschriebenes SEPA-Lastschriftmandat', req: true },
+    { k: 'sonstiges', l: 'Sonstige Unterlagen' }
   ];
 
   const DOC_STATES = [
